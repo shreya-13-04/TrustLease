@@ -139,8 +139,8 @@ This project satisfies all requirements specified in the **23CSE313 – Foundati
 ## 🧾 Project Status
 
 ✅ Phase 0 – Planning & Architecture Completed  
-⬜ Phase 1 – Backend Setup  
-⬜ Phase 2 – Authentication  
+✅ Phase 1 – Backend Setup  
+✅ Phase 2 – Authentication  
 ⬜ Phase 3 – Authorization  
 ⬜ Phase 4 – Encryption & Key Exchange  
 ⬜ Phase 5 – Digital Signatures & Encoding  
