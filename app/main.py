@@ -1,6 +1,9 @@
 from flask import Blueprint, request, jsonify
 from app.models import User
 from app.extensions import db   # ✅ correct import
+import random
+from datetime import datetime, timedelta
+
 
 main_bp = Blueprint('main', __name__)
 
@@ -34,7 +37,6 @@ def register():
 
     return jsonify({"message": "User registered successfully"}), 201
 
-
 @main_bp.route("/login", methods=["POST"])
 def login():
     data = request.get_json()
@@ -48,9 +50,46 @@ def login():
     user = User.query.filter_by(username=username).first()
 
     if user and user.check_password(password):
+        otp = str(random.randint(100000, 999999))
+        user.otp = otp
+        user.otp_expiry = datetime.utcnow() + timedelta(minutes=2)
+
+        db.session.commit()
+
         return jsonify({
-            "message": "Login successful",
-            "role": user.role
+            "message": "OTP generated. Please verify.",
+            "otp": otp  # shown only for demo/testing
         }), 200
 
     return jsonify({"error": "Invalid credentials"}), 401
+
+@main_bp.route("/verify-otp", methods=["POST"])
+def verify_otp():
+    data = request.get_json()
+
+    username = data.get("username")
+    otp = data.get("otp")
+
+    if not username or not otp:
+        return jsonify({"error": "Missing OTP data"}), 400
+
+    user = User.query.filter_by(username=username).first()
+
+    if not user or not user.otp:
+        return jsonify({"error": "OTP not generated"}), 400
+
+    if user.otp != otp:
+        return jsonify({"error": "Invalid OTP"}), 401
+
+    if datetime.utcnow() > user.otp_expiry:
+        return jsonify({"error": "OTP expired"}), 401
+
+    # OTP is valid → clear it
+    user.otp = None
+    user.otp_expiry = None
+    db.session.commit()
+
+    return jsonify({
+        "message": "MFA successful. Login complete.",
+        "role": user.role
+    }), 200
