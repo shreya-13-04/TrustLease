@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>OTP Verification</h2>
+
+<form method="post">
+    <label>Enter OTP</label>
+    <input type="text" name="otp" required>
+
+    <button type="submit">Verify OTP</button>
+</form>
+
+{% if error %}
+<p class="error">{{ error }}</p>
+{% endif %}
+{% endblock %}
