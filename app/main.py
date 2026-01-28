@@ -81,6 +81,74 @@ def api_register():
     return jsonify({"message": "User registered"}), 201
 
 
+@main_bp.route("/register", methods=["GET", "POST"])
+def register_page():
+    if request.method == "POST":
+        username = request.form.get("username")
+        password = request.form.get("password")
+        role = request.form.get("role")
+        captcha_answer = request.form.get("captcha_answer")
+
+
+        if not captcha_answer or int(captcha_answer) != session.get("captcha_result"):
+            return render_template(
+                "register.html",
+                error="Invalid CAPTCHA",
+                captcha_question=session.get("captcha_question")
+            )
+        
+        if not username or not password or not role:
+            return render_template(
+                "register.html",
+                error="All fields are required"
+            )
+
+        existing_user = User.query.filter_by(username=username).first()
+        if existing_user:
+            return render_template(
+                "register.html",
+                error="Username already exists"
+            )
+        if len(password) < 8:
+            return render_template(
+                "register.html",
+                error="Password must be at least 8 characters"
+            )
+        if role == "admin":
+            return render_template(
+                "register.html",
+                error="Admin registration is restricted"
+            )
+        if User.query.filter_by(username=username).first():
+            return render_template(
+                "register.html",
+                error="Username already exists",
+                captcha_question=session.get("captcha_question")
+            )
+
+
+        user = User(username=username, role=role)
+        user.set_password(password)
+
+        db.session.add(user)
+        db.session.commit()
+
+        # Redirect to login after successful registration
+        return redirect(url_for("main.login_page"))
+    # -------- CAPTCHA GENERATION (GET REQUEST) --------
+    a = random.randint(1, 9)
+    b = random.randint(1, 9)
+
+    session["captcha_result"] = a + b
+    session["captcha_question"] = f"{a} + {b}"
+
+    return render_template(
+        "register.html",
+        captcha_question=session["captcha_question"]
+    )
+
+    return render_template("register.html")
+
 @main_bp.route("/api/login", methods=["POST"])
 def api_login():
     data = request.get_json()

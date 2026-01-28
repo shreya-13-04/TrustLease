@@ -3,6 +3,10 @@
 
 <div class="card auth-card">
     <h2>Create Account</h2>
+    {% if error %}
+<div class="alert error">{{ error }}</div>
+{% endif %}
+
 
     <form method="POST">
         <label>Username</label>
@@ -16,6 +20,9 @@
             <option value="owner">Owner</option>
             <option value="delegate">Delegate</option>
         </select>
+        <label>CAPTCHA: {{ captcha_question }}</label>
+        <input type="text" name="captcha_answer" placeholder="Enter answer" required>
+
 
         <button class="btn primary">Register</button>
     </form>
