@@ -41,9 +41,10 @@ class SecureData(db.Model):
 
 class SignedData(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    owner = db.Column(db.String(80), nullable=False)
-    data = db.Column(db.Text, nullable=False)
-    signature = db.Column(db.LargeBinary, nullable=False)
+    owner = db.Column(db.String(50))
+    data = db.Column(db.Text)
+    signature = db.Column(db.LargeBinary)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
 class AuditLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)

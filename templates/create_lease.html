@@ -1,8 +1,16 @@
 {% extends "base.html" %}
 {% block content %}
 
-<div class="card">
+<div class="card form-card">
     <h2>Create Lease</h2>
+
+    {% if success %}
+        <div class="alert success">{{ success }}</div>
+        <div class="alert info">
+            <strong>Access Token:</strong><br>
+            <code>{{ token }}</code>
+        </div>
+    {% endif %}
 
     <form method="POST">
         <label>Delegate Username</label>
@@ -12,7 +20,7 @@
         <input type="text" name="resource" required>
 
         <label>Duration (minutes)</label>
-        <input type="number" name="minutes" required>
+        <input type="number" name="minutes" min="1" required>
 
         <button class="btn primary">Create Lease</button>
     </form>

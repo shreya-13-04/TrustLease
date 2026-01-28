@@ -3,24 +3,33 @@
 
 <h2>My Leases</h2>
 
-<table>
-    <tr>
-        <th>Delegate</th>
-        <th>Resource</th>
-        <th>Status</th>
-    </tr>
-
+{% if leases %}
+<div class="grid">
     {% for lease in leases %}
-    <tr>
-        <td>{{ lease.delegate }}</td>
-        <td>{{ lease.resource }}</td>
-        <td>
-            <span class="status-badge {{ 'active' if lease.is_active else 'expired' }}">
-                {{ 'Active' if lease.is_active else 'Expired' }}
-            </span>
-        </td>
-    </tr>
+    <div class="card">
+        <p><strong>Delegate:</strong> {{ lease.delegate }}</p>
+        <p><strong>Resource:</strong> {{ lease.resource }}</p>
+        <p><strong>Status:</strong>
+            {% if lease.is_active %}
+                <span class="badge success">ACTIVE</span>
+            {% else %}
+                <span class="badge danger">REVOKED</span>
+            {% endif %}
+        </p>
+        <p><strong>Expires:</strong> {{ lease.end_time }}</p>
+
+        {% if lease.is_active %}
+        <a href="{{ url_for('main.revoke_lease', lease_id=lease.id) }}"
+           class="btn danger"
+           onclick="return confirm('Are you sure you want to revoke this lease?');">
+            Revoke Lease
+        </a>
+        {% endif %}
+    </div>
     {% endfor %}
-</table>
+</div>
+{% else %}
+<p>No leases created yet.</p>
+{% endif %}
 
 {% endblock %}

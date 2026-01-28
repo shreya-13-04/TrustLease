@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Lease Agreement</title>
+    <style>
+        body { font-family: Arial; padding: 40px; }
+        .section { margin-bottom: 20px; }
+        .signature-box {
+            margin-top: 40px;
+            border-top: 2px solid #000;
+            width: 300px;
+            padding-top: 10px;
+        }
+        .btn {
+            padding: 10px 20px;
+            margin-top: 20px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Lease Agreement</h1>
+
+<div class="section">
+    <strong>Owner:</strong> {{ lease.owner }}
+</div>
+
+<div class="section">
+    <strong>Delegate:</strong> {{ lease.delegate }}
+</div>
+
+<div class="section">
+    <strong>Resource:</strong> {{ lease.resource }}
+</div>
+
+<div class="section">
+    <strong>Valid From:</strong> {{ lease.start_time }}
+</div>
+
+<div class="section">
+    <strong>Valid Until:</strong> {{ lease.end_time }}
+</div>
+
+<div class="signature-box">
+    <strong>Owner Signature:</strong><br>
+
+    {% if lease.signature %}
+        ✔ Digitally Signed
+    {% else %}
+        ❌ Not Signed
+    {% endif %}
+</div>
+
+<!-- 🔐 SIGN BUTTON GOES HERE -->
+{% if session.role == "owner" and not lease.signature %}
+<form method="POST" action="/lease/{{ lease.id }}/sign">
+    <button class="btn">Sign Lease</button>
+</form>
+{% endif %}
+
+</body>
+</html>

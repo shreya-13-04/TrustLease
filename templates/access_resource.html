@@ -1,18 +1,32 @@
 {% extends "base.html" %}
 {% block content %}
 
+<h2>Access Resource</h2>
+
 <div class="card">
-    <h2>Access Resource</h2>
 
     <form method="POST">
         <label>Resource Name</label>
-        <input type="text" name="resource" required>
+        <input type="text" name="resource"
+               placeholder="e.g. server_logs"
+               required>
 
         <label>Access Token</label>
-        <input type="text" name="token" required>
+        <textarea name="token"
+                  placeholder="Paste access token here"
+                  required></textarea>
 
         <button class="btn primary">Access</button>
     </form>
+
+    {% if message %}
+        <div class="alert success">{{ message }}</div>
+    {% endif %}
+
+    {% if error %}
+        <div class="alert error">{{ error }}</div>
+    {% endif %}
+
 </div>
 
 {% endblock %}

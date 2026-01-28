@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2>Verify Signature</h2>
+
+<div class="card">
+
+    <form method="POST">
+
+        <label>Original Data</label>
+        <textarea name="data" required
+                  placeholder="Enter original data"></textarea>
+
+        <label>Signature (HEX)</label>
+        <textarea name="signature" required
+                  placeholder="Paste signature here"></textarea>
+
+        <button class="btn primary">Verify</button>
+    </form>
+
+    {% if result %}
+        {% if result == "VALID" %}
+            <div class="alert success">
+                ✅ Signature is VALID
+            </div>
+        {% else %}
+            <div class="alert error">
+                ❌ Signature is INVALID
+            </div>
+        {% endif %}
+    {% endif %}
+
+</div>
+
+{% endblock %}

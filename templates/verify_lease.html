@@ -1,0 +1,9 @@
+<h2>Lease Verification</h2>
+
+<p><strong>Resource:</strong> {{ lease.resource }}</p>
+
+{% if is_valid %}
+    <p style="color:green;">✔ Signature VALID</p>
+{% else %}
+    <p style="color:red;">✖ Signature INVALID</p>
+{% endif %}

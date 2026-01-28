@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2>Signed Data History</h2>
+
+{% for r in records %}
+<div class="card">
+    <p><strong>Data:</strong> {{ r.data }}</p>
+    <p><strong>Signed At:</strong> {{ r.timestamp }}</p>
+</div>
+{% else %}
+<p>No signed data yet.</p>
+{% endfor %}
+
+{% endblock %}

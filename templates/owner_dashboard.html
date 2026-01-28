@@ -4,20 +4,32 @@
 <h2>Owner Control Panel</h2>
 
 <div class="grid">
+
     <div class="card">
         <h3>Create Lease</h3>
-        <a href="/create-lease" class="btn primary">New Lease</a>
+        <p>Grant time-bound access to a delegate</p>
+        <a href="{{ url_for('main.create_lease') }}" class="btn primary">
+            New Lease
+        </a>
     </div>
 
     <div class="card">
         <h3>My Leases</h3>
-        <a href="/my-leases" class="btn secondary">View Leases</a>
+        <p>View & revoke active leases</p>
+        <a href="{{ url_for('main.my_leases') }}" class="btn secondary">
+            View Leases
+        </a>
     </div>
 
     <div class="card">
         <h3>Sign Data</h3>
-        <a href="/sign-data" class="btn secondary">Digital Signature</a>
+        <p>Digitally sign sensitive data</p>
+        <a href="{{ url_for('main.sign_data_page') }}" class="btn secondary">
+    Digital Signature
+</a>
+
     </div>
+
 </div>
 
 {% endblock %}
