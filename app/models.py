@@ -21,7 +21,6 @@ class Lease(db.Model):
 
     owner = db.Column(db.String(80), nullable=False)
     delegate = db.Column(db.String(80), nullable=False)
-
     resource = db.Column(db.String(120), nullable=False)
 
     start_time = db.Column(db.DateTime, nullable=False)
@@ -29,6 +28,11 @@ class Lease(db.Model):
 
     is_active = db.Column(db.Boolean, default=True)
 
+    # Phase 8 additions
+    lease_hash = db.Column(db.String(64), nullable=False)
+    signature = db.Column(db.LargeBinary, nullable=False)
+    # Phase 9
+    access_token = db.Column(db.String(255), nullable=False)
 
 class SecureData(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -41,3 +45,9 @@ class SignedData(db.Model):
     data = db.Column(db.Text, nullable=False)
     signature = db.Column(db.LargeBinary, nullable=False)
 
+class AuditLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80))
+    action = db.Column(db.String(200), nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    ip_address = db.Column(db.String(45))

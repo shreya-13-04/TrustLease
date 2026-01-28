@@ -3,11 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <title>TrustLease</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <div class="container">
-        {% block content %}{% endblock %}
+
+<nav class="navbar">
+    <div class="nav-brand">🔐 TrustLease</div>
+    {% if session.get("role") %}
+    <div class="nav-role">
+        <span class="role-badge {{ session['role'] }}">{{ session['role']|capitalize }}</span>
+        <a href="/logout" class="logout-btn">Logout</a>
     </div>
+    {% endif %}
+</nav>
+
+<main class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert {{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+</main>
+
 </body>
 </html>

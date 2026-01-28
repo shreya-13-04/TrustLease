@@ -1,12 +1,20 @@
 {% extends "base.html" %}
 {% block content %}
 
-<h2>Sign Data</h2>
+<div class="card">
+    <h2>Digital Signature</h2>
 
-<form method="post" action="{{ url_for('main.sign_data_route') }}">
-    <textarea name="data" placeholder="Enter data to sign" required></textarea>
-    <br><br>
-    <button type="submit">Sign</button>
-</form>
+    <form method="POST">
+        <textarea name="data" rows="6" placeholder="Enter data to sign" required></textarea>
+        <button class="btn primary">Sign</button>
+    </form>
+
+    {% if signature %}
+    <div class="alert success">
+        <strong>Signature:</strong><br>
+        {{ signature }}
+    </div>
+    {% endif %}
+</div>
 
 {% endblock %}

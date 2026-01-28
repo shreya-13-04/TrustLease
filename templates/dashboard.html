@@ -1,20 +1,7 @@
-{% extends "base.html" %}
-
-{% block content %}
-<h2>Dashboard</h2>
-
-<p><strong>Logged in as:</strong> {{ role }}</p>
-
 {% if role == "owner" %}
-<a href="/upload"><button>Upload Secure Data</button></a>
-<a href="/grant"><button>Grant Time-Bound Access</button></a>
+    {% include "owner_dashboard.html" %}
 {% elif role == "delegate" %}
-<a href="/view"><button>View Shared Data</button></a>
+    {% include "delegate_dashboard.html" %}
 {% elif role == "admin" %}
-<a href="/audit"><button>View Audit Logs</button></a>
+    {% include "admin_dashboard.html" %}
 {% endif %}
-
-
-<br><br>
-<a href="{{ url_for('main.logout') }}">Logout</a>
-{% endblock %}

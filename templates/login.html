@@ -1,19 +1,25 @@
 {% extends "base.html" %}
-
 {% block content %}
-<h2>TrustLease Login</h2>
 
-<form method="post">
-    <label>Username</label>
-    <input type="text" name="username" required>
+<div class="card auth-card">
+    <h2>Login</h2>
 
-    <label>Password</label>
-    <input type="password" name="password" required>
+    {% if error %}
+    <div class="alert error">{{ error }}</div>
+    {% endif %}
 
-    <button type="submit">Login</button>
-</form>
+    <form method="POST">
+        <label>Username</label>
+        <input type="text" name="username" required>
 
-{% if error %}
-<p class="error">{{ error }}</p>
-{% endif %}
+        <label>Password</label>
+        <input type="password" name="password" required>
+
+        <button type="submit" class="btn primary">Login</button>
+    </form>
+
+    <p class="hint">Protected with Multi-Factor Authentication</p>
+    <p class="link">New user? <a href="/register">Create an account</a></p>
+</div>
+
 {% endblock %}

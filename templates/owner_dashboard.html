@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2>Owner Control Panel</h2>
+
+<div class="grid">
+    <div class="card">
+        <h3>Create Lease</h3>
+        <a href="/create-lease" class="btn primary">New Lease</a>
+    </div>
+
+    <div class="card">
+        <h3>My Leases</h3>
+        <a href="/my-leases" class="btn secondary">View Leases</a>
+    </div>
+
+    <div class="card">
+        <h3>Sign Data</h3>
+        <a href="/sign-data" class="btn secondary">Digital Signature</a>
+    </div>
+</div>
+
+{% endblock %}

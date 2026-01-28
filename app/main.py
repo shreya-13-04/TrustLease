@@ -1,30 +1,40 @@
 from flask import (
-    Blueprint,
-    request,
-    jsonify,
-    render_template,
-    redirect,
-    url_for,
-    session,
-    abort
+    Blueprint, request, jsonify, render_template,
+    redirect, url_for, session, abort
 )
-from app.models import Lease
 from datetime import datetime, timedelta
-
-from app.crypto_utils import encrypt_data, decrypt_data
-from app.models import User, SecureData
-from app.extensions import db
 import random
-from datetime import datetime, timedelta
+import hashlib
 from functools import wraps
+
+from app.extensions import db
+from app.models import (
+    User, Lease, SecureData, SignedData, AuditLog
+)
+from app.crypto_utils import encrypt_data, decrypt_data
 from app.signature_utils import sign_data, verify_signature
-from app.models import SignedData
+from app.encoding_utils import encode_token, decode_token
 
-main_bp = Blueprint('main', __name__)
+main_bp = Blueprint("main", __name__)
 
-# ------------------------------------------------------------------
-# AUTHORIZATION DECORATOR
-# ------------------------------------------------------------------
+# ==================================================
+# HELPERS
+# ==================================================
+
+def log_event(username, action):
+    log = AuditLog(
+        username=username,
+        action=action,
+        ip_address=request.remote_addr
+    )
+    db.session.add(log)
+    db.session.commit()
+
+
+def hash_lease(owner, delegate, resource, start_time, end_time):
+    payload = f"{owner}|{delegate}|{resource}|{start_time}|{end_time}"
+    return hashlib.sha256(payload.encode()).hexdigest()
+
 
 def role_required(required_role):
     def decorator(f):
@@ -34,117 +44,105 @@ def role_required(required_role):
                 return redirect(url_for("main.login_page"))
 
             if session["role"] != required_role:
+                log_event(session.get("username", "anonymous"),
+                          "Unauthorized role access attempt")
                 abort(403)
 
             return f(*args, **kwargs)
         return wrapper
     return decorator
 
-
-# ------------------------------------------------------------------
+# ==================================================
 # HEALTH CHECK
-# ------------------------------------------------------------------
+# ==================================================
 
-@main_bp.route("/health", methods=["GET"])
+@main_bp.route("/health")
 def health():
     return jsonify({"message": "TrustLease backend is running"})
 
-
-# ------------------------------------------------------------------
-# API ROUTES
-# ------------------------------------------------------------------
+# ==================================================
+# API ROUTES (Testing)
+# ==================================================
 
 @main_bp.route("/api/register", methods=["POST"])
 def api_register():
     data = request.get_json()
 
-    username = data.get("username")
-    password = data.get("password")
-    role = data.get("role")
-
-    if not username or not password or not role:
-        return jsonify({"error": "Missing fields"}), 400
-
-    if User.query.filter_by(username=username).first():
+    if User.query.filter_by(username=data["username"]).first():
         return jsonify({"error": "User already exists"}), 409
 
-    user = User(username=username, role=role)
-    user.set_password(password)
+    user = User(username=data["username"], role=data["role"])
+    user.set_password(data["password"])
 
     db.session.add(user)
     db.session.commit()
 
-    return jsonify({"message": "User registered successfully"}), 201
+    log_event(user.username, "User registered (API)")
+    return jsonify({"message": "User registered"}), 201
 
 
 @main_bp.route("/api/login", methods=["POST"])
 def api_login():
     data = request.get_json()
+    user = User.query.filter_by(username=data["username"]).first()
 
-    username = data.get("username")
-    password = data.get("password")
-
-    user = User.query.filter_by(username=username).first()
-
-    if user and user.check_password(password):
+    if user and user.check_password(data["password"]):
         otp = str(random.randint(100000, 999999))
         user.otp = otp
         user.otp_expiry = datetime.utcnow() + timedelta(minutes=2)
         db.session.commit()
 
-        return jsonify({
-            "message": "OTP generated",
-            "otp": otp
-        }), 200
+        log_event(user.username, "API login successful (OTP generated)")
+        return jsonify({"otp": otp}), 200
 
+    log_event(data.get("username", "unknown"), "API login failed")
     return jsonify({"error": "Invalid credentials"}), 401
 
 
 @main_bp.route("/api/verify-otp", methods=["POST"])
 def api_verify_otp():
     data = request.get_json()
+    user = User.query.filter_by(username=data["username"]).first()
 
-    username = data.get("username")
-    otp = data.get("otp")
+    if (
+        user and
+        user.otp == data["otp"] and
+        datetime.utcnow() <= user.otp_expiry
+    ):
+        user.otp = None
+        user.otp_expiry = None
+        db.session.commit()
 
-    user = User.query.filter_by(username=username).first()
+        log_event(user.username, "API OTP verified")
+        return jsonify({"message": "MFA successful"}), 200
 
-    if not user or not user.otp:
-        return jsonify({"error": "OTP not generated"}), 400
+    log_event(data.get("username", "unknown"), "API OTP failed")
+    return jsonify({"error": "OTP invalid"}), 401
 
-    if user.otp != otp or datetime.utcnow() > user.otp_expiry:
-        return jsonify({"error": "Invalid or expired OTP"}), 401
-
-    user.otp = None
-    user.otp_expiry = None
-    db.session.commit()
-
-    return jsonify({"message": "MFA successful", "role": user.role}), 200
-
-
-# ------------------------------------------------------------------
-# UI ROUTES (LOGIN + MFA)
-# ------------------------------------------------------------------
+# ==================================================
+# UI AUTHENTICATION FLOW
+# ==================================================
 
 @main_bp.route("/", methods=["GET", "POST"])
 def login_page():
     if request.method == "POST":
-        username = request.form.get("username")
-        password = request.form.get("password")
+        user = User.query.filter_by(
+            username=request.form.get("username")
+        ).first()
 
-        user = User.query.filter_by(username=username).first()
-
-        if user and user.check_password(password):
+        if user and user.check_password(request.form.get("password")):
             otp = str(random.randint(100000, 999999))
             user.otp = otp
             user.otp_expiry = datetime.utcnow() + timedelta(minutes=2)
             db.session.commit()
 
-            session["username"] = username
-            print("OTP for demo:", otp)
+            session["username"] = user.username
+            log_event(user.username, "UI login successful (OTP generated)")
+            print("OTP (demo):", otp)
 
             return redirect(url_for("main.otp_page"))
 
+        log_event(request.form.get("username"), "UI login failed")
         return render_template("login.html", error="Invalid credentials")
 
     return render_template("login.html")
@@ -156,18 +154,19 @@ def otp_page():
         return redirect(url_for("main.login_page"))
 
     if request.method == "POST":
-        otp = request.form.get("otp")
         user = User.query.filter_by(username=session["username"]).first()
 
-        if user and user.otp == otp and datetime.utcnow() <= user.otp_expiry:
+        if user and user.otp == request.form.get("otp"):
             user.otp = None
             user.otp_expiry = None
             db.session.commit()
 
             session["role"] = user.role
+            log_event(user.username, "OTP verified (UI)")
             return redirect(url_for("main.dashboard"))
 
-        return render_template("otp.html", error="Invalid or expired OTP")
+        log_event(session["username"], "OTP verification failed")
+        return render_template("otp.html", error="Invalid OTP")
 
     return render_template("otp.html")
 
@@ -179,142 +178,35 @@ def dashboard():
 
     return render_template("dashboard.html", role=session["role"])
 
-
-# ------------------------------------------------------------------
-# PHASE 5.5 – ENCRYPTED DATA STORAGE (NEW)
-# ------------------------------------------------------------------
+# ==================================================
+# PHASE 5 – SECURE DATA STORAGE
+# ==================================================
 
 @main_bp.route("/secure-upload", methods=["POST"])
 @role_required("owner")
 def secure_upload():
-    plaintext = request.form.get("data")
-
-    encrypted = encrypt_data(plaintext)
-
+    encrypted = encrypt_data(request.form.get("data"))
     record = SecureData(
         owner=session["username"],
         encrypted_content=encrypted
     )
-
     db.session.add(record)
     db.session.commit()
 
-    return "Data encrypted and securely stored"
+    log_event(session["username"], "Encrypted data uploaded")
+    return "Data encrypted and stored"
 
 
 @main_bp.route("/secure-view")
 @role_required("owner")
 def secure_view():
     records = SecureData.query.filter_by(owner=session["username"]).all()
+    decrypted = [decrypt_data(r.encrypted_content) for r in records]
+    return jsonify(decrypted)
 
-    decrypted_data = [
-        decrypt_data(r.encrypted_content) for r in records
-    ]
-
-    return jsonify(decrypted_data)
-
-
-# ------------------------------------------------------------------
-# PHASE 4 AUTHORIZED ROUTES
-# ------------------------------------------------------------------
-
-@main_bp.route("/upload")
-@role_required("owner")
-def upload_data():
-    return "Secure data upload — OWNER only"
-
-
-@main_bp.route("/grant")
-@role_required("owner")
-def grant_access():
-    return "Granting time-bound access — OWNER only"
-
-
-@main_bp.route("/view")
-@role_required("delegate")
-def view_shared_data():
-    return "Viewing shared data — DELEGATE only"
-
-
-@main_bp.route("/audit")
-@role_required("admin")
-def audit_logs():
-    return "Audit logs — ADMIN only"
-
-
-# ------------------------------------------------------------------
-# LOGOUT
-# ------------------------------------------------------------------
-
-@main_bp.route("/logout")
-def logout():
-    session.clear()
-    return redirect(url_for("main.login_page"))
-
-
-#----------------------------------------------------
-
-@main_bp.route("/sign-data", methods=["POST"])
-@role_required("owner")
-def sign_data_route():
-    content = request.form.get("data")
-
-    signature = sign_data(content)
-
-    record = SignedData(
-        owner=session["username"],
-        data=content,
-        signature=signature
-    )
-
-    db.session.add(record)
-    db.session.commit()
-
-    return "Data signed and stored successfully"
-
-@main_bp.route("/verify-data")
-@role_required("owner")
-def verify_data_route():
-    records = SignedData.query.filter_by(owner=session["username"]).all()
-
-    results = []
-    for r in records:
-        valid = verify_signature(r.data, r.signature)
-        results.append({
-            "data": r.data,
-            "signature_valid": valid
-        })
-
-    return jsonify(results)
-
-
-@main_bp.route("/secure-upload-form", methods=["GET", "POST"])
-@role_required("owner")
-def secure_upload_form():
-    if request.method == "POST":
-        plaintext = request.form.get("data")
-        encrypted = encrypt_data(plaintext)
-
-        record = SecureData(
-            owner=session["username"],
-            encrypted_content=encrypted
-        )
-
-        db.session.add(record)
-        db.session.commit()
-
-        return redirect(url_for("main.secure_view"))
-
-    return '''
-    <form method="post">
-        <input name="data" placeholder="Enter secret data" required>
-        <button type="submit">Upload Securely</button>
-    </form>
-    '''
-@main_bp.route("/sign", methods=["GET"])
-@role_required("owner")
-def sign_page():
-    return render_template("sign_data.html")
+# ==================================================
+# PHASE 7–9 – LEASE + TOKEN + SIGNATURE
+# ==================================================
 
 @main_bp.route("/create-lease", methods=["POST"])
 @role_required("owner")
@@ -323,48 +215,99 @@ def create_lease():
     resource = request.form.get("resource")
     duration = int(request.form.get("minutes"))
 
+    start = datetime.utcnow()
+    end = start + timedelta(minutes=duration)
+
+    lease_hash = hash_lease(
+        session["username"], delegate, resource, start, end
+    )
+    signature = sign_data(lease_hash)
+
+    raw_token = f"{session['username']}|{delegate}|{resource}|{start}"
+    encoded_token = encode_token(raw_token)
+
     lease = Lease(
         owner=session["username"],
         delegate=delegate,
         resource=resource,
-        start_time=datetime.utcnow(),
-        end_time=datetime.utcnow() + timedelta(minutes=duration),
-        is_active=True
+        start_time=start,
+        end_time=end,
+        is_active=True,
+        lease_hash=lease_hash,
+        signature=signature,
+        access_token=encoded_token
     )
 
     db.session.add(lease)
     db.session.commit()
 
-    return "Lease created successfully"
+    log_event(session["username"], f"Lease created for {delegate}")
+    return f"Lease created. Access token: {encoded_token}"
 
-def is_lease_valid(lease):
-    return (
-        lease.is_active and
-        lease.start_time <= datetime.utcnow() <= lease.end_time
-    )
 
-@main_bp.route("/access-resource/<resource>")
+@main_bp.route("/access-resource/<resource>/<token>")
 @role_required("delegate")
-def access_resource(resource):
+def access_resource(resource, token):
     lease = Lease.query.filter_by(
         delegate=session["username"],
         resource=resource
     ).first()
 
-    if not lease or not is_lease_valid(lease):
-        return "Access denied or lease expired", 403
+    if not lease or not lease.is_active:
+        log_event(session["username"], "Unauthorized access attempt")
+        return "Access denied", 403
 
+    expected_hash = hash_lease(
+        lease.owner,
+        lease.delegate,
+        lease.resource,
+        lease.start_time,
+        lease.end_time
+    )
+
+    if expected_hash != lease.lease_hash:
+        return "Lease tampered", 403
+
+    if not verify_signature(lease.lease_hash, lease.signature):
+        return "Invalid lease signature", 403
+
+    log_event(session["username"], f"Accessed resource {resource}")
     return f"Access granted to resource: {resource}"
+
 
 @main_bp.route("/revoke-lease/<int:lease_id>")
 @role_required("owner")
 def revoke_lease(lease_id):
     lease = Lease.query.get_or_404(lease_id)
-
-    if lease.owner != session["username"]:
-        return "Unauthorized", 403
-
     lease.is_active = False
     db.session.commit()
 
+    log_event(session["username"], f"Lease revoked ID {lease_id}")
     return "Lease revoked successfully"
+
+# ==================================================
+# PHASE 10 – AUDIT LOGS
+# ==================================================
+
+@main_bp.route("/audit-logs")
+@role_required("admin")
+def audit_logs():
+    logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).all()
+    return jsonify([
+        {
+            "user": l.username,
+            "action": l.action,
+            "time": l.timestamp.isoformat(),
+            "ip": l.ip_address
+        } for l in logs
+    ])
+
+# ==================================================
+# LOGOUT
+# ==================================================
+
+@main_bp.route("/logout")
+def logout():
+    log_event(session.get("username"), "User logged out")
+    session.clear()
+    return redirect(url_for("main.login_page"))

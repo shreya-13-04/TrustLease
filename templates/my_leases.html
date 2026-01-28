@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2>My Leases</h2>
+
+<table>
+    <tr>
+        <th>Delegate</th>
+        <th>Resource</th>
+        <th>Status</th>
+    </tr>
+
+    {% for lease in leases %}
+    <tr>
+        <td>{{ lease.delegate }}</td>
+        <td>{{ lease.resource }}</td>
+        <td>
+            <span class="status-badge {{ 'active' if lease.is_active else 'expired' }}">
+                {{ 'Active' if lease.is_active else 'Expired' }}
+            </span>
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+
+{% endblock %}
