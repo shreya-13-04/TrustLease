@@ -8,7 +8,8 @@ from flask import (
     session,
     abort
 )
-from app.models import User
+from app.crypto_utils import encrypt_data, decrypt_data
+from app.models import User, SecureData
 from app.extensions import db
 import random
 from datetime import datetime, timedelta
@@ -17,7 +18,7 @@ from functools import wraps
 main_bp = Blueprint('main', __name__)
 
 # ------------------------------------------------------------------
-# AUTHORIZATION DECORATOR (PHASE 4 CORE)
+# AUTHORIZATION DECORATOR
 # ------------------------------------------------------------------
 
 def role_required(required_role):
@@ -45,7 +46,7 @@ def health():
 
 
 # ------------------------------------------------------------------
-# API ROUTES (Backend Testing / Demo)
+# API ROUTES
 # ------------------------------------------------------------------
 
 @main_bp.route("/api/register", methods=["POST"])
@@ -78,9 +79,6 @@ def api_login():
     username = data.get("username")
     password = data.get("password")
 
-    if not username or not password:
-        return jsonify({"error": "Missing credentials"}), 400
-
     user = User.query.filter_by(username=username).first()
 
     if user and user.check_password(password):
@@ -90,8 +88,8 @@ def api_login():
         db.session.commit()
 
         return jsonify({
-            "message": "OTP generated. Please verify.",
-            "otp": otp  # demo only
+            "message": "OTP generated",
+            "otp": otp
         }), 200
 
     return jsonify({"error": "Invalid credentials"}), 401
@@ -109,24 +107,18 @@ def api_verify_otp():
     if not user or not user.otp:
         return jsonify({"error": "OTP not generated"}), 400
 
-    if user.otp != otp:
-        return jsonify({"error": "Invalid OTP"}), 401
-
-    if datetime.utcnow() > user.otp_expiry:
-        return jsonify({"error": "OTP expired"}), 401
+    if user.otp != otp or datetime.utcnow() > user.otp_expiry:
+        return jsonify({"error": "Invalid or expired OTP"}), 401
 
     user.otp = None
     user.otp_expiry = None
     db.session.commit()
 
-    return jsonify({
-        "message": "MFA successful",
-        "role": user.role
-    }), 200
+    return jsonify({"message": "MFA successful", "role": user.role}), 200
 
 
 # ------------------------------------------------------------------
-# UI ROUTES (AUTHENTICATION + MFA)
+# UI ROUTES (LOGIN + MFA)
 # ------------------------------------------------------------------
 
 @main_bp.route("/", methods=["GET", "POST"])
@@ -184,7 +176,41 @@ def dashboard():
 
 
 # ------------------------------------------------------------------
-# AUTHORIZED ACTION ROUTES (PHASE 4)
+# PHASE 5.5 – ENCRYPTED DATA STORAGE (NEW)
+# ------------------------------------------------------------------
+
+@main_bp.route("/secure-upload", methods=["POST"])
+@role_required("owner")
+def secure_upload():
+    plaintext = request.form.get("data")
+
+    encrypted = encrypt_data(plaintext)
+
+    record = SecureData(
+        owner=session["username"],
+        encrypted_content=encrypted
+    )
+
+    db.session.add(record)
+    db.session.commit()
+
+    return "Data encrypted and securely stored"
+
+
+@main_bp.route("/secure-view")
+@role_required("owner")
+def secure_view():
+    records = SecureData.query.filter_by(owner=session["username"]).all()
+
+    decrypted_data = [
+        decrypt_data(r.encrypted_content) for r in records
+    ]
+
+    return jsonify(decrypted_data)
+
+
+# ------------------------------------------------------------------
+# PHASE 4 AUTHORIZED ROUTES
 # ------------------------------------------------------------------
 
 @main_bp.route("/upload")
@@ -219,3 +245,29 @@ def audit_logs():
 def logout():
     session.clear()
     return redirect(url_for("main.login_page"))
+
+
+#----------------------------------------------------
+@main_bp.route("/secure-upload-form", methods=["GET", "POST"])
+@role_required("owner")
+def secure_upload_form():
+    if request.method == "POST":
+        plaintext = request.form.get("data")
+        encrypted = encrypt_data(plaintext)
+
+        record = SecureData(
+            owner=session["username"],
+            encrypted_content=encrypted
+        )
+
+        db.session.add(record)
+        db.session.commit()
+
+        return redirect(url_for("main.secure_view"))
+
+    return '''
+    <form method="post">
+        <input name="data" placeholder="Enter secret data" required>
+        <button type="submit">Upload Securely</button>
+    </form>
+    '''

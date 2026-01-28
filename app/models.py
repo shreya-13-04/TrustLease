@@ -16,3 +16,8 @@ class User(db.Model):
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+class SecureData(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    owner = db.Column(db.String(80), nullable=False)
+    encrypted_content = db.Column(db.Text, nullable=False)
