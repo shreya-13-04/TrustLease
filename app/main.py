@@ -8,12 +8,17 @@ from flask import (
     session,
     abort
 )
+from app.models import Lease
+from datetime import datetime, timedelta
+
 from app.crypto_utils import encrypt_data, decrypt_data
 from app.models import User, SecureData
 from app.extensions import db
 import random
 from datetime import datetime, timedelta
 from functools import wraps
+from app.signature_utils import sign_data, verify_signature
+from app.models import SignedData
 
 main_bp = Blueprint('main', __name__)
 
@@ -248,6 +253,41 @@ def logout():
 
 
 #----------------------------------------------------
+
+@main_bp.route("/sign-data", methods=["POST"])
+@role_required("owner")
+def sign_data_route():
+    content = request.form.get("data")
+
+    signature = sign_data(content)
+
+    record = SignedData(
+        owner=session["username"],
+        data=content,
+        signature=signature
+    )
+
+    db.session.add(record)
+    db.session.commit()
+
+    return "Data signed and stored successfully"
+
+@main_bp.route("/verify-data")
+@role_required("owner")
+def verify_data_route():
+    records = SignedData.query.filter_by(owner=session["username"]).all()
+
+    results = []
+    for r in records:
+        valid = verify_signature(r.data, r.signature)
+        results.append({
+            "data": r.data,
+            "signature_valid": valid
+        })
+
+    return jsonify(results)
+
+
 @main_bp.route("/secure-upload-form", methods=["GET", "POST"])
 @role_required("owner")
 def secure_upload_form():
@@ -271,3 +311,60 @@ def secure_upload_form():
         <button type="submit">Upload Securely</button>
     </form>
     '''
+@main_bp.route("/sign", methods=["GET"])
+@role_required("owner")
+def sign_page():
+    return render_template("sign_data.html")
+
+@main_bp.route("/create-lease", methods=["POST"])
+@role_required("owner")
+def create_lease():
+    delegate = request.form.get("delegate")
+    resource = request.form.get("resource")
+    duration = int(request.form.get("minutes"))
+
+    lease = Lease(
+        owner=session["username"],
+        delegate=delegate,
+        resource=resource,
+        start_time=datetime.utcnow(),
+        end_time=datetime.utcnow() + timedelta(minutes=duration),
+        is_active=True
+    )
+
+    db.session.add(lease)
+    db.session.commit()
+
+    return "Lease created successfully"
+
+def is_lease_valid(lease):
+    return (
+        lease.is_active and
+        lease.start_time <= datetime.utcnow() <= lease.end_time
+    )
+
+@main_bp.route("/access-resource/<resource>")
+@role_required("delegate")
+def access_resource(resource):
+    lease = Lease.query.filter_by(
+        delegate=session["username"],
+        resource=resource
+    ).first()
+
+    if not lease or not is_lease_valid(lease):
+        return "Access denied or lease expired", 403
+
+    return f"Access granted to resource: {resource}"
+
+@main_bp.route("/revoke-lease/<int:lease_id>")
+@role_required("owner")
+def revoke_lease(lease_id):
+    lease = Lease.query.get_or_404(lease_id)
+
+    if lease.owner != session["username"]:
+        return "Unauthorized", 403
+
+    lease.is_active = False
+    db.session.commit()
+
+    return "Lease revoked successfully"

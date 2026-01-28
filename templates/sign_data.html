@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2>Sign Data</h2>
+
+<form method="post" action="{{ url_for('main.sign_data_route') }}">
+    <textarea name="data" placeholder="Enter data to sign" required></textarea>
+    <br><br>
+    <button type="submit">Sign</button>
+</form>
+
+{% endblock %}
