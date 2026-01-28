@@ -232,13 +232,27 @@ def otp_page():
 # ==================================================
 # DASHBOARD
 # ==================================================
+@main_bp.route("/admin")
+@role_required("admin")
+def admin_dashboard():
+    return render_template("admin_dashboard.html")
+
 
 @main_bp.route("/dashboard")
 def dashboard():
     if "role" not in session:
         return redirect(url_for("main.login_page"))
 
-    return render_template("dashboard.html", role=session["role"])
+    role = session["role"]
+
+    if role == "owner":
+        return render_template("owner_dashboard.html")
+    elif role == "delegate":
+        return render_template("delegate_dashboard.html")
+    elif role == "admin":
+        return redirect(url_for("main.admin_dashboard"))
+    else:
+        abort(403)
 
 # ==================================================
 # PHASE 5 – SECURE DATA STORAGE
