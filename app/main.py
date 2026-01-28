@@ -5,18 +5,40 @@ from flask import (
     render_template,
     redirect,
     url_for,
-    session
+    session,
+    abort
 )
 from app.models import User
 from app.extensions import db
 import random
 from datetime import datetime, timedelta
+from functools import wraps
 
 main_bp = Blueprint('main', __name__)
 
 # ------------------------------------------------------------------
+# AUTHORIZATION DECORATOR (PHASE 4 CORE)
+# ------------------------------------------------------------------
+
+def role_required(required_role):
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            if "role" not in session:
+                return redirect(url_for("main.login_page"))
+
+            if session["role"] != required_role:
+                abort(403)
+
+            return f(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+# ------------------------------------------------------------------
 # HEALTH CHECK
 # ------------------------------------------------------------------
+
 @main_bp.route("/health", methods=["GET"])
 def health():
     return jsonify({"message": "TrustLease backend is running"})
@@ -69,7 +91,7 @@ def api_login():
 
         return jsonify({
             "message": "OTP generated. Please verify.",
-            "otp": otp   # demo only
+            "otp": otp  # demo only
         }), 200
 
     return jsonify({"error": "Invalid credentials"}), 401
@@ -104,7 +126,7 @@ def api_verify_otp():
 
 
 # ------------------------------------------------------------------
-# UI ROUTES (Flask Templates + MFA Flow)
+# UI ROUTES (AUTHENTICATION + MFA)
 # ------------------------------------------------------------------
 
 @main_bp.route("/", methods=["GET", "POST"])
@@ -122,8 +144,6 @@ def login_page():
             db.session.commit()
 
             session["username"] = username
-
-            # Simulate email (demo purpose)
             print("OTP for demo:", otp)
 
             return redirect(url_for("main.otp_page"))
@@ -142,11 +162,7 @@ def otp_page():
         otp = request.form.get("otp")
         user = User.query.filter_by(username=session["username"]).first()
 
-        if (
-            user
-            and user.otp == otp
-            and datetime.utcnow() <= user.otp_expiry
-        ):
+        if user and user.otp == otp and datetime.utcnow() <= user.otp_expiry:
             user.otp = None
             user.otp_expiry = None
             db.session.commit()
@@ -166,6 +182,38 @@ def dashboard():
 
     return render_template("dashboard.html", role=session["role"])
 
+
+# ------------------------------------------------------------------
+# AUTHORIZED ACTION ROUTES (PHASE 4)
+# ------------------------------------------------------------------
+
+@main_bp.route("/upload")
+@role_required("owner")
+def upload_data():
+    return "Secure data upload — OWNER only"
+
+
+@main_bp.route("/grant")
+@role_required("owner")
+def grant_access():
+    return "Granting time-bound access — OWNER only"
+
+
+@main_bp.route("/view")
+@role_required("delegate")
+def view_shared_data():
+    return "Viewing shared data — DELEGATE only"
+
+
+@main_bp.route("/audit")
+@role_required("admin")
+def audit_logs():
+    return "Audit logs — ADMIN only"
+
+
+# ------------------------------------------------------------------
+# LOGOUT
+# ------------------------------------------------------------------
 
 @main_bp.route("/logout")
 def logout():

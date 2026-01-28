@@ -6,13 +6,14 @@
 <p><strong>Logged in as:</strong> {{ role }}</p>
 
 {% if role == "owner" %}
-    <button>Upload Secure Data</button>
-    <button>Grant Time-Bound Access</button>
+<a href="/upload"><button>Upload Secure Data</button></a>
+<a href="/grant"><button>Grant Time-Bound Access</button></a>
 {% elif role == "delegate" %}
-    <button>View Shared Data</button>
+<a href="/view"><button>View Shared Data</button></a>
 {% elif role == "admin" %}
-    <button>View Audit Logs</button>
+<a href="/audit"><button>View Audit Logs</button></a>
 {% endif %}
+
 
 <br><br>
 <a href="{{ url_for('main.logout') }}">Logout</a>
