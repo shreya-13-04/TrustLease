@@ -332,7 +332,8 @@ def create_lease():
 @role_required("owner")
 def my_leases():
     leases = Lease.query.filter_by(owner=session["username"]).all()
-    return render_template("my_leases.html", leases=leases)
+    return render_template("my_leases.html", leases=leases, now=datetime.utcnow())
+
 
 @main_bp.route("/revoke-lease/<int:lease_id>")
 @role_required("owner")
@@ -405,6 +406,7 @@ def access_resource_page():
 
     return render_template("access_resource.html")
 
+from datetime import datetime
 
 @main_bp.route("/access-resource/<resource>/<token>")
 @role_required("delegate")
@@ -414,9 +416,17 @@ def access_resource(resource, token):
         resource=resource
     ).first()
 
-    if not lease or not lease.is_active:
-        log_event(session["username"], "Unauthorized access attempt")
-        return "Access denied", 403
+    if not lease:
+        return "No lease found", 403
+
+    # 🔥 ENFORCE EXPIRY
+    if datetime.utcnow() > lease.end_time:
+        lease.is_active = False
+        db.session.commit()
+        return "Lease expired", 403
+
+    if not lease.is_active:
+        return "Lease revoked", 403
 
     decoded = decode_token(token)
     if decoded is None or lease.access_token != token:
@@ -438,6 +448,7 @@ def access_resource(resource, token):
 
     log_event(session["username"], f"Accessed resource {resource}")
     return f"Access granted to resource: {resource}"
+
 
 @main_bp.route("/verify-signature", methods=["GET", "POST"])
 def verify_signature_page():
@@ -520,3 +531,35 @@ def sign_data_page():
         log_event(session["username"], "Data signed")
 
     return render_template("sign_data.html", signature=signature)
+
+#Temp 
+@main_bp.route("/debug/db")
+def debug_db_console():
+    users = User.query.all()
+    leases = Lease.query.all()
+    logs = AuditLog.query.all()
+
+    return {
+        "users": [
+            {
+                "username": u.username,
+                "role": u.role
+            } for u in users
+        ],
+        "leases": [
+            {
+                "id": l.id,
+                "owner": l.owner,
+                "delegate": l.delegate,
+                "resource": l.resource,
+                "active": l.is_active
+            } for l in leases
+        ],
+        "audit_logs": [
+            {
+                "user": log.username,
+                "action": log.action,
+                "time": log.timestamp.isoformat()
+            } for log in logs
+        ]
+    }

@@ -10,11 +10,14 @@
         <p><strong>Delegate:</strong> {{ lease.delegate }}</p>
         <p><strong>Resource:</strong> {{ lease.resource }}</p>
         <p><strong>Status:</strong>
-            {% if lease.is_active %}
+            {% if lease.end_time < now %}
+                <span class="badge danger">EXPIRED</span>
+            {% elif lease.is_active %}
                 <span class="badge success">ACTIVE</span>
             {% else %}
                 <span class="badge danger">REVOKED</span>
             {% endif %}
+
         </p>
         <p><strong>Expires:</strong> {{ lease.end_time }}</p>
 
