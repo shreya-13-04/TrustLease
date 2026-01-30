@@ -7,7 +7,7 @@ import hashlib
 SECRET_KEY = os.environ.get("TRUSTLEASE_SECRET_KEY")
 
 if not SECRET_KEY:
-    SECRET_KEY = Fernet.generate_key().decode()
+    SECRET_KEY = Fernet.generate_key().decode()   #Key generation and key exchange(AES)
 
 fernet = Fernet(SECRET_KEY.encode())
 
